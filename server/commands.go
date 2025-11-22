@@ -17,14 +17,18 @@ import (
 )
 
 const (
-	actionHelp  = "help"
-	actionAbout = "about"
+	actionHelp   = "help"
+	actionAbout  = "about"
+	actionReload = "reload"
+	actionConfig = "config"
 
 	helpMsg = `run:
 	/alertmanager alerts - to list the existing alerts
 	/alertmanager silences - to list the existing silences
 	/alertmanager expire_silence - to expire a silence
 	/alertmanager status - to list the version and uptime of the Alertmanager instance
+	/alertmanager reload - reload channel configuration and mappings
+	/alertmanager config - display current channel mappings
 	/alertmanager help - display Slash Command help text"
 	/alertmanager about - display build information
 	`
@@ -39,7 +43,7 @@ func (p *Plugin) getCommand() (*model.Command, error) {
 	return &model.Command{
 		Trigger:              "alertmanager",
 		AutoComplete:         true,
-		AutoCompleteDesc:     fmt.Sprintf("Available commands: status, alerts, silences, expire_silence, %s, %s", actionHelp, actionAbout),
+		AutoCompleteDesc:     fmt.Sprintf("Available commands: status, alerts, silences, expire_silence, reload, config, %s, %s", actionHelp, actionAbout),
 		AutoCompleteHint:     "[command]",
 		AutocompleteData:     getAutocompleteData(),
 		AutocompleteIconData: iconData,
@@ -47,7 +51,7 @@ func (p *Plugin) getCommand() (*model.Command, error) {
 }
 
 func getAutocompleteData() *model.AutocompleteData {
-	root := model.NewAutocompleteData("alertmanager", "[command]", fmt.Sprintf("Available commands: status, alerts, silences, expire_silence, %s, %s", actionHelp, actionAbout))
+	root := model.NewAutocompleteData("alertmanager", "[command]", fmt.Sprintf("Available commands: status, alerts, silences, expire_silence, reload, config, %s, %s", actionHelp, actionAbout))
 
 	alerts := model.NewAutocompleteData("alerts", "", "List the existing alerts")
 	root.AddCommand(alerts)
@@ -62,6 +66,12 @@ func getAutocompleteData() *model.AutocompleteData {
 
 	status := model.NewAutocompleteData("status", "", "List the version and uptime of the Alertmanager instance")
 	root.AddCommand(status)
+
+	reload := model.NewAutocompleteData(actionReload, "", "Reload channel configuration and mappings")
+	root.AddCommand(reload)
+
+	config := model.NewAutocompleteData(actionConfig, "", "Display current channel mappings")
+	root.AddCommand(config)
 
 	help := model.NewAutocompleteData(actionHelp, "", "Display Slash Command help text")
 	root.AddCommand(help)
@@ -118,6 +128,10 @@ func (p *Plugin) executeCommand(args *model.CommandArgs) string {
 		msg, err = p.handleListSilences(args)
 	case "expire_silence":
 		msg, err = p.handleExpireSilence(args)
+	case actionReload:
+		msg, err = p.handleReload(args)
+	case actionConfig:
+		msg, err = p.handleConfig(args)
 	case actionAbout:
 		msg, err = command.BuildInfo(Manifest)
 	case actionHelp:
@@ -388,4 +402,68 @@ func ConvertSilenceToSlackAttachment(silence types.Silence, config alertConfig, 
 	}
 
 	return attachment
+}
+
+func (p *Plugin) handleReload(args *model.CommandArgs) (string, error) {
+	p.API.LogInfo("Reloading channel mappings via command")
+
+	err := p.reloadChannelMappings()
+	if err != nil {
+		return "", fmt.Errorf("failed to reload channel mappings: %w", err)
+	}
+
+	return "✅ Channel mappings reloaded successfully!", nil
+}
+
+func (p *Plugin) handleConfig(args *model.CommandArgs) (string, error) {
+	p.API.LogInfo("Displaying current configuration via command")
+
+	configuration := p.getConfiguration()
+
+	var fields []*model.SlackAttachmentField
+	fields = addFields(fields, "Total Configurations", fmt.Sprintf("%d", len(configuration.AlertConfigs)), false)
+
+	for id, alertConfig := range configuration.AlertConfigs {
+		channelID := p.AlertConfigIDChannelID[alertConfig.ID]
+
+		// Get channel name
+		channelName := "unknown"
+		if channelID != "" {
+			channel, err := p.API.GetChannel(channelID)
+			if err == nil {
+				channelName = channel.Name
+			}
+		}
+
+		configInfo := fmt.Sprintf(
+			"**Team:** %s\n**Channel:** %s (ID: %s)\n**AlertManager URL:** %s\n**Token:** %s...%s",
+			alertConfig.Team,
+			channelName,
+			channelID,
+			alertConfig.AlertManagerURL,
+			alertConfig.Token[:8],
+			alertConfig.Token[len(alertConfig.Token)-8:],
+		)
+
+		fields = addFields(fields, fmt.Sprintf("Config #%s", id), configInfo, false)
+	}
+
+	attachment := &model.SlackAttachment{
+		Title:  "📋 Current AlertManager Configuration",
+		Fields: fields,
+		Color:  "#0066cc",
+	}
+
+	post := &model.Post{
+		ChannelId: args.ChannelId,
+		UserId:    p.BotUserID,
+		RootId:    args.RootId,
+	}
+
+	model.ParseSlackAttachment(post, []*model.SlackAttachment{attachment})
+	if _, appErr := p.API.CreatePost(post); appErr != nil {
+		return "", fmt.Errorf("failed to create config post: %w", appErr)
+	}
+
+	return "", nil
 }

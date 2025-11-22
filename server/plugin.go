@@ -109,7 +109,39 @@ func (p *Plugin) ensureAlertChannelExists(alertConfig alertConfig) (string, erro
 	return channel.Id, nil
 }
 
+func (p *Plugin) reloadChannelMappings() error {
+	p.API.LogInfo("Starting channel mappings reload")
+
+	configuration := p.getConfiguration()
+	newMapping := make(map[string]string)
+
+	for k, alertConfig := range configuration.AlertConfigs {
+		var channelID string
+		var err error
+
+		channelID, err = p.ensureAlertChannelExists(alertConfig)
+		if err != nil {
+			p.API.LogWarn(fmt.Sprintf("Failed to ensure alert channel %v during reload", k), "error", err.Error())
+			continue
+		}
+
+		newMapping[alertConfig.ID] = channelID
+		p.API.LogInfo(fmt.Sprintf("Mapped config %s to channel %s", alertConfig.ID, channelID))
+	}
+
+	p.AlertConfigIDChannelID = newMapping
+	p.API.LogInfo("Channel mappings reload completed", "mappings", fmt.Sprintf("%+v", newMapping))
+
+	return nil
+}
+
 func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
+	p.API.LogInfo("[HTTP] Incoming request",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"remote_addr", r.RemoteAddr,
+	)
+
 	if r.Method == http.MethodGet {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Mattermost AlertManager Plugin"))
@@ -119,24 +151,45 @@ func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Req
 	invalidOrMissingTokenErr := "Invalid or missing token"
 	token := r.URL.Query().Get("token")
 	if token == "" {
+		p.API.LogWarn("[HTTP] Request without token",
+			"path", r.URL.Path,
+			"remote_addr", r.RemoteAddr,
+		)
 		http.Error(w, invalidOrMissingTokenErr, http.StatusBadRequest)
 		return
 	}
 
+	p.API.LogDebug("[HTTP] Token received",
+		"token_prefix", token[:8],
+		"path", r.URL.Path,
+	)
+
 	configuration := p.getConfiguration()
 	for _, alertConfig := range configuration.AlertConfigs {
 		if subtle.ConstantTimeCompare([]byte(token), []byte(alertConfig.Token)) == 1 {
+			p.API.LogInfo("[HTTP] Token matched config",
+				"config_id", alertConfig.ID,
+				"path", r.URL.Path,
+			)
 			switch r.URL.Path {
 			case "/api/webhook":
 				p.handleWebhook(w, r, alertConfig)
 			case "/api/expire":
 				p.handleExpireAction(w, r, alertConfig)
 			default:
+				p.API.LogWarn("[HTTP] Unknown path",
+					"path", r.URL.Path,
+					"config_id", alertConfig.ID,
+				)
 				http.NotFound(w, r)
 			}
 			return
 		}
 	}
 
+	p.API.LogWarn("[HTTP] No matching token found",
+		"token_prefix", token[:8],
+		"path", r.URL.Path,
+	)
 	http.Error(w, invalidOrMissingTokenErr, http.StatusBadRequest)
 }

@@ -19,19 +19,47 @@ import (
 )
 
 func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request, alertConfig alertConfig) {
-	p.API.LogInfo("Received alertmanager notification")
+	p.API.LogInfo("[WEBHOOK] Received alertmanager notification",
+		"config_id", alertConfig.ID,
+		"config_team", alertConfig.Team,
+		"config_channel", alertConfig.Channel,
+		"remote_addr", r.RemoteAddr,
+	)
 
 	var message webhook.Message
 	err := json.NewDecoder(r.Body).Decode(&message)
 	if err != nil {
-		p.API.LogError("failed to decode webhook message", "err", err.Error())
+		p.API.LogError("[WEBHOOK] Failed to decode webhook message",
+			"config_id", alertConfig.ID,
+			"error", err.Error(),
+		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	p.API.LogInfo("[WEBHOOK] Decoded webhook message",
+		"config_id", alertConfig.ID,
+		"status", message.Status,
+		"receiver", message.Receiver,
+		"num_alerts", len(message.Alerts),
+	)
+
 	if message == (webhook.Message{}) {
+		p.API.LogWarn("[WEBHOOK] Received empty webhook message",
+			"config_id", alertConfig.ID,
+		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	// Log each alert
+	for i, alert := range message.Alerts {
+		p.API.LogDebug("[WEBHOOK] Alert details",
+			"config_id", alertConfig.ID,
+			"alert_index", i,
+			"alert_status", alert.Status,
+			"alert_labels", fmt.Sprintf("%+v", alert.Labels),
+		)
 	}
 
 	var fields []*model.SlackAttachmentField
@@ -44,15 +72,46 @@ func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request, alertConf
 		Color:  setColor(message.Status),
 	}
 
+	// Determine target channel
+	channelID := p.AlertConfigIDChannelID[alertConfig.ID]
+	if channelID == "" {
+		p.API.LogError("[WEBHOOK] No channel mapping found for config",
+			"config_id", alertConfig.ID,
+			"config_channel", alertConfig.Channel,
+			"available_mappings", fmt.Sprintf("%+v", p.AlertConfigIDChannelID),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	p.API.LogInfo("[WEBHOOK] Sending alert to channel",
+		"config_id", alertConfig.ID,
+		"channel_id", channelID,
+		"config_channel_name", alertConfig.Channel,
+	)
+
 	post := &model.Post{
-		ChannelId: p.AlertConfigIDChannelID[alertConfig.ID],
+		ChannelId: channelID,
 		UserId:    p.BotUserID,
 	}
 
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{attachment})
 	if _, appErr := p.API.CreatePost(post); appErr != nil {
+		p.API.LogError("[WEBHOOK] Failed to create post",
+			"config_id", alertConfig.ID,
+			"channel_id", channelID,
+			"error", appErr.Error(),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	p.API.LogInfo("[WEBHOOK] Successfully posted alert",
+		"config_id", alertConfig.ID,
+		"channel_id", channelID,
+		"num_alerts", len(message.Alerts),
+	)
+	w.WriteHeader(http.StatusOK)
 }
 
 func addFields(fields []*model.SlackAttachmentField, title, msg string, short bool) []*model.SlackAttachmentField {

@@ -122,5 +122,11 @@ func (p *Plugin) OnConfigurationChange() error {
 
 	p.setConfiguration(&configurationInstance)
 
-	return p.OnActivate()
+	// Reload channel mappings after configuration change
+	p.API.LogInfo("Configuration changed, reloading channel mappings")
+	if err := p.reloadChannelMappings(); err != nil {
+		p.API.LogError("Failed to reload channel mappings after configuration change", "error", err.Error())
+	}
+
+	return nil
 }
