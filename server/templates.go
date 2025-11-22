@@ -17,9 +17,7 @@ func renderAlertTemplate(tmpl string, alert alerttemplate.Alert) (string, error)
 	}
 
 	funcMap := template.FuncMap{
-		"toUpper": func(s string) string {
-			return strings.ToUpper(s)
-		},
+		"toUpper": strings.ToUpper,
 		"formatTime": func(t time.Time) string {
 			return t.Format(time.RFC1123)
 		},

@@ -404,7 +404,7 @@ func ConvertSilenceToSlackAttachment(silence types.Silence, config alertConfig, 
 	return attachment
 }
 
-func (p *Plugin) handleReload(args *model.CommandArgs) (string, error) {
+func (p *Plugin) handleReload(_ *model.CommandArgs) (string, error) {
 	p.API.LogInfo("Reloading channel mappings via command")
 
 	err := p.reloadChannelMappings()

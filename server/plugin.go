@@ -108,22 +108,6 @@ func (p *Plugin) unackAlert(fingerprint string) error {
 	return nil
 }
 
-func (p *Plugin) getAlertAck(fingerprint string) (*AlertAck, error) {
-	key := p.getAlertAckKey(fingerprint)
-	data, appErr := p.API.KVGet(key)
-	if appErr != nil {
-		return nil, appErr
-	}
-	if data == nil {
-		return nil, nil
-	}
-	var ack AlertAck
-	if err := json.Unmarshal(data, &ack); err != nil {
-		return nil, err
-	}
-	return &ack, nil
-}
-
 func (p *Plugin) OnDeactivate() error {
 	return nil
 }

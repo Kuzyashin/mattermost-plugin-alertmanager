@@ -2,24 +2,54 @@
 
 This plugin is the [AlertManager](https://github.com/prometheus/alertmanager) bot for Mattermost.
 
-Forked and inspired on https://github.com/metalmatze/alertmanager-bot the alertmanager for Telegram. Thanks so much [@metalmatze](https://github.com/metalmatze/)
+## Fork Information
+
+This is a fork of [cpanato/mattermost-plugin-alertmanager](https://github.com/cpanato/mattermost-plugin-alertmanager) with significant improvements and bug fixes:
+
+### Key Improvements in This Fork
+
+- ✅ **ACK/UNACK functionality** - Interactive buttons
+- ✅ **Visual feedback** - Posts visually reflect alert state (🔥 FIRING 🔥 ↔ 👁️ ACKNOWLEDGED 👁️)
+- ✅ **Thread tracking** - All actions (ACK/UNACK/Silence) create detailed thread replies
+- ✅ **Persistent state** - Alert acknowledgment state stored in KV Store
+
+### Original Inspiration
+
+Originally forked and inspired by [@metalmatze](https://github.com/metalmatze/)'s [alertmanager-bot](https://github.com/metalmatze/alertmanager-bot) for Telegram
 
 ## Features
 
-- Receive the Alerts via webhook
-- **NEW:** Smart alert lifecycle management - firing alerts create posts, resolved alerts update them ✅
-- **NEW:** Thread replies with resolution timing information
-- **NEW:** Interactive action buttons (Silence/ACK/UNACK) with dynamic button updates 🎯
-- **NEW:** Visual alert states - color-coded posts (red=firing, yellow=acknowledged, green=resolved) 🎨
-- **NEW:** Severity-based mentions (@team notifications) 📢
-- **NEW:** Custom alert templates for firing and resolved alerts 📝
-- Can list existing alerts
-- Can list existing silences
-- Can expire a silence
-- **NEW:** Reload channel mappings without plugin restart (`/alertmanager reload`)
-- **NEW:** Display current configuration and channel mappings (`/alertmanager config`)
-- **NEW:** Auto-reload channel mappings on configuration save
-- **NEW:** Enhanced logging for webhook processing and troubleshooting
+### Core Functionality
+- ✅ Receive alerts via webhook from Prometheus AlertManager
+- ✅ Smart alert lifecycle management - firing alerts create posts, resolved alerts update them
+- ✅ Multiple AlertManager configurations support with independent routing
+- ✅ Automatic channel creation and bot user management
+
+### Interactive Actions 🎯
+- ✅ **Fully functional ACK/UNACK buttons** - Real-time post updates with button state changes
+- ✅ **Silence buttons** (1h/4h) - Direct integration with AlertManager API
+- ✅ **Dynamic visual updates** - Colors and status titles change instantly on action
+  - 🔥 FIRING 🔥 (red) ↔ 👁️ ACKNOWLEDGED 👁️ (yellow/orange)
+- ✅ **Thread replies** - Every action creates a thread post with user and timestamp
+- ✅ **Persistent state** - ACK state stored in KV Store and survives restarts
+
+### Alert Presentation
+- ✅ Color-coded posts:
+  - 🔴 Red = Firing (not acknowledged)
+  - 🟡 Yellow/Orange = Acknowledged
+  - 🟢 Green = Resolved
+- ✅ Thread replies with resolution timing information
+- ✅ Severity-based mentions (@team notifications for critical alerts)
+- ✅ Custom Go templates for firing and resolved alerts
+
+### Configuration & Management
+- ✅ `/alertmanager reload` - Reload channel mappings without plugin restart
+- ✅ `/alertmanager config` - Display current configuration and channel mappings
+- ✅ `/alertmanager alerts` - List existing alerts
+- ✅ `/alertmanager silences` - List active silences
+- ✅ `/alertmanager expire_silence` - Expire a silence
+- ✅ Auto-reload channel mappings on configuration save
+- ✅ Enhanced logging for webhook processing and troubleshooting
 
 ## Alert Lifecycle Management 🆕
 

@@ -9,6 +9,15 @@ import (
 	"github.com/mattermost/mattermost-server/v6/model"
 )
 
+const (
+	actionSilence  = "silence"
+	actionAck      = "ack"
+	actionUnack    = "unack"
+	modeAckToUnack = "ack_to_unack"
+	modeUnackToAck = "unack_to_ack"
+	statusResolved = "resolved"
+)
+
 // handleAlertAction processes action button clicks (Silence/ACK/UNACK)
 func (p *Plugin) handleAlertAction(w http.ResponseWriter, r *http.Request) {
 	var action Action
@@ -33,26 +42,26 @@ func (p *Plugin) handleAlertAction(w http.ResponseWriter, r *http.Request) {
 	)
 
 	switch action.Context.Action {
-	case "silence":
-		p.handleSilenceAction(w, r, action)
-	case "ack":
-		p.handleAckAction(w, r, action)
-	case "unack":
-		p.handleUnackAction(w, r, action)
+	case actionSilence:
+		p.handleSilenceAction(w, action)
+	case actionAck:
+		p.handleAckAction(w, action)
+	case actionUnack:
+		p.handleUnackAction(w, action)
 	default:
 		p.API.LogWarn("[ACTION] Unknown action", "action", action.Context.Action)
 		http.Error(w, "Unknown action", http.StatusBadRequest)
 	}
 }
 
-func (p *Plugin) handleSilenceAction(w http.ResponseWriter, r *http.Request, action Action) {
+func (p *Plugin) handleSilenceAction(w http.ResponseWriter, action Action) {
 	fingerprint := action.Context.Fingerprint
 	configID := action.Context.ConfigID
 	duration := action.Context.Duration
 
 	// Get config
 	config := p.getConfiguration()
-	alertConfig, ok := config.AlertConfigs[configID]
+	alertCfg, ok := config.AlertConfigs[configID]
 	if !ok {
 		p.API.LogError("[ACTION] Config not found", "config_id", configID)
 		http.Error(w, "Config not found", http.StatusNotFound)
@@ -79,7 +88,7 @@ func (p *Plugin) handleSilenceAction(w http.ResponseWriter, r *http.Request, act
 		"fingerprint", fingerprint,
 		"duration", duration,
 		"user", user.Username,
-		"alertmanager_url", alertConfig.AlertManagerURL,
+		"alertmanager_url", alertCfg.AlertManagerURL,
 	)
 
 	// Update post to show it's silenced
@@ -115,10 +124,12 @@ func (p *Plugin) handleSilenceAction(w http.ResponseWriter, r *http.Request, act
 			"message": fmt.Sprintf("🔕 Silenced for %s by @%s", duration, user.Username),
 		},
 	}
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		p.API.LogError("[ACTION] Failed to encode response", "error", err.Error())
+	}
 }
 
-func (p *Plugin) handleAckAction(w http.ResponseWriter, r *http.Request, action Action) {
+func (p *Plugin) handleAckAction(w http.ResponseWriter, action Action) {
 	fingerprint := action.Context.Fingerprint
 
 	// Get user info
@@ -168,7 +179,7 @@ func (p *Plugin) handleAckAction(w http.ResponseWriter, r *http.Request, action 
 	)
 
 	// Update post buttons - replace ACK with UNACK
-	updatedAttachments := p.updateActionButtons(post, fingerprint, "ack_to_unack")
+	updatedAttachments := p.updateActionButtons(post, fingerprint, modeAckToUnack)
 
 	// Update the post and return the update response
 	if updatedAttachments != nil {
@@ -198,15 +209,19 @@ func (p *Plugin) handleAckAction(w http.ResponseWriter, r *http.Request, action 
 			Update: post,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			p.API.LogError("[ACTION] Failed to encode response", "error", err.Error())
+		}
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{})
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{}); err != nil {
+		p.API.LogError("[ACTION] Failed to encode response", "error", err.Error())
+	}
 }
 
-func (p *Plugin) handleUnackAction(w http.ResponseWriter, r *http.Request, action Action) {
+func (p *Plugin) handleUnackAction(w http.ResponseWriter, action Action) {
 	fingerprint := action.Context.Fingerprint
 
 	// Get user info
@@ -256,7 +271,7 @@ func (p *Plugin) handleUnackAction(w http.ResponseWriter, r *http.Request, actio
 	)
 
 	// Update post buttons - replace UNACK with ACK
-	updatedAttachments := p.updateActionButtons(post, fingerprint, "unack_to_ack")
+	updatedAttachments := p.updateActionButtons(post, fingerprint, modeUnackToAck)
 
 	// Update the post and return the update response
 	if updatedAttachments != nil {
@@ -286,12 +301,16 @@ func (p *Plugin) handleUnackAction(w http.ResponseWriter, r *http.Request, actio
 			Update: post,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			p.API.LogError("[ACTION] Failed to encode response", "error", err.Error())
+		}
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{})
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{}); err != nil {
+		p.API.LogError("[ACTION] Failed to encode response", "error", err.Error())
+	}
 }
 
 // updateActionButtons updates the action buttons in a post
@@ -414,17 +433,17 @@ func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string)
 
 			// Keep Silence buttons as-is
 			if action.Integration != nil {
-				if ctx, ok := action.Integration.Context["action"].(string); ok && ctx == "silence" {
+				if ctx, ok := action.Integration.Context["action"].(string); ok && ctx == actionSilence {
 					newActions = append(newActions, action)
 					continue
 				}
 			}
 
 			// Replace ACK/UNACK button based on mode
-			if mode == "ack_to_unack" {
+			if mode == modeAckToUnack {
 				// Skip the old ACK button, add UNACK instead
 				if action.Integration != nil {
-					if ctx, ok := action.Integration.Context["action"].(string); ok && ctx == "ack" {
+					if ctx, ok := action.Integration.Context["action"].(string); ok && ctx == actionAck {
 						// Replace with UNACK button
 						newActions = append(newActions, &model.PostAction{
 							Name: "🔄 UNACK",
@@ -432,7 +451,7 @@ func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string)
 							Integration: &model.PostActionIntegration{
 								URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
 								Context: map[string]interface{}{
-									"action":      "unack",
+									"action":      actionUnack,
 									"fingerprint": fingerprint,
 								},
 							},
@@ -440,10 +459,10 @@ func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string)
 						continue
 					}
 				}
-			} else if mode == "unack_to_ack" {
+			} else if mode == modeUnackToAck {
 				// Skip the old UNACK button, add ACK instead
 				if action.Integration != nil {
-					if ctx, ok := action.Integration.Context["action"].(string); ok && ctx == "unack" {
+					if ctx, ok := action.Integration.Context["action"].(string); ok && ctx == actionUnack {
 						// Replace with ACK button
 						newActions = append(newActions, &model.PostAction{
 							Name: "👁️ ACK",
@@ -451,7 +470,7 @@ func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string)
 							Integration: &model.PostActionIntegration{
 								URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
 								Context: map[string]interface{}{
-									"action":      "ack",
+									"action":      actionAck,
 									"fingerprint": fingerprint,
 								},
 							},

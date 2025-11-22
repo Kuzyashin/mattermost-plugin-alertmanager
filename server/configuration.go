@@ -24,15 +24,15 @@ type configuration struct {
 }
 
 type alertConfig struct {
+	EnableActions    bool // Enable Silence/ACK/UNACK buttons
 	ID               string
 	Token            string
 	Channel          string
 	Team             string
 	AlertManagerURL  string
-	SeverityMentions SeverityMentionsMap // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
-	EnableActions    bool                // Enable Silence/ACK/UNACK buttons
 	FiringTemplate   string              // Custom template for firing alerts
 	ResolvedTemplate string              // Custom template for resolved alerts
+	SeverityMentions SeverityMentionsMap // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
 }
 
 // SeverityMentionsMap is a custom type that handles both string (JSON) and map unmarshaling

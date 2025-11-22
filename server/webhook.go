@@ -18,6 +18,10 @@ import (
 	"github.com/mattermost/mattermost-server/v6/model"
 )
 
+const (
+	alertStatusResolved = "resolved"
+)
+
 func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request, alertConfig alertConfig) {
 	p.API.LogInfo("[WEBHOOK] Received alertmanager notification",
 		"config_id", alertConfig.ID,
@@ -75,7 +79,7 @@ func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request, alertConf
 			"alert_labels", fmt.Sprintf("%+v", alert.Labels),
 		)
 
-		if alert.Status == "resolved" {
+		if alert.Status == alertStatusResolved {
 			// Handle resolved alert - update existing post
 			p.handleResolvedAlert(alertConfig, alert, message.ExternalURL, message.Receiver, channelID)
 		} else {
@@ -417,7 +421,7 @@ func ConvertAlertToFields(config alertConfig, alert template.Alert, externalURL,
 		(alert.StartsAt).Format(time.RFC1123),
 		durafmt.Parse(time.Since(alert.StartsAt)).LimitFirstN(2).String(),
 	)
-	if alert.Status == "resolved" {
+	if alert.Status == alertStatusResolved {
 		msg = fmt.Sprintf("%s**Ended at:** %s (%s ago)\n", msg,
 			(alert.EndsAt).Format(time.RFC1123),
 			durafmt.Parse(time.Since(alert.EndsAt)).LimitFirstN(2).String(),
