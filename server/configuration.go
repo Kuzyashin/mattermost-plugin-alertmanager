@@ -23,11 +23,15 @@ type configuration struct {
 }
 
 type alertConfig struct {
-	ID              string
-	Token           string
-	Channel         string
-	Team            string
-	AlertManagerURL string
+	ID               string
+	Token            string
+	Channel          string
+	Team             string
+	AlertManagerURL  string
+	SeverityMentions map[string]string // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
+	EnableActions    bool              // Enable Silence/ACK/UNACK buttons
+	FiringTemplate   string            // Custom template for firing alerts
+	ResolvedTemplate string            // Custom template for resolved alerts
 }
 
 func (ac *alertConfig) IsValid() error {

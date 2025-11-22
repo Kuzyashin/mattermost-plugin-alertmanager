@@ -7,6 +7,11 @@ Forked and inspired on https://github.com/metalmatze/alertmanager-bot the alertm
 ## Features
 
 - Receive the Alerts via webhook
+- **NEW:** Smart alert lifecycle management - firing alerts create posts, resolved alerts update them ✅
+- **NEW:** Thread replies with resolution timing information
+- **NEW:** Interactive action buttons (Silence/ACK/UNACK) 🎯
+- **NEW:** Severity-based mentions (@team notifications) 📢
+- **NEW:** Custom alert templates for firing and resolved alerts 📝
 - Can list existing alerts
 - Can list existing silences
 - Can expire a silence
@@ -14,6 +19,123 @@ Forked and inspired on https://github.com/metalmatze/alertmanager-bot the alertm
 - **NEW:** Display current configuration and channel mappings (`/alertmanager config`)
 - **NEW:** Auto-reload channel mappings on configuration save
 - **NEW:** Enhanced logging for webhook processing and troubleshooting
+
+## Alert Lifecycle Management 🆕
+
+The plugin now intelligently handles alert state transitions:
+
+### Firing Alert
+When an alert fires, the plugin:
+1. Creates a new post in the configured channel
+2. Stores the alert fingerprint → post ID mapping
+3. Uses red color (🔥 FIRING 🔥)
+
+### Resolved Alert
+When an alert resolves, the plugin:
+1. Finds the original firing alert post
+2. **Updates** the original post (changes color to green, status to ✅ RESOLVED)
+3. Creates a **thread reply** with timing information:
+   ```
+   ✅ Alert Resolved
+
+   Fired at: Thu, 21 Nov 2024 10:00:00 UTC
+   Resolved at: Thu, 21 Nov 2024 10:10:00 UTC
+   Duration: 10 minutes
+   ```
+
+This approach keeps your channels clean and makes it easy to see alert duration at a glance!
+
+## Interactive Action Buttons 🆕
+
+Enable interactive action buttons on alert posts for quick alert management:
+
+### Available Actions
+- **🔕 Silence 1h / 4h** - Silence the alert for 1 or 4 hours
+- **👁️ ACK** - Acknowledge the alert (marks it as seen)
+
+### Configuration
+Enable action buttons in the plugin configuration:
+
+```json
+{
+  "EnableActions": true
+}
+```
+
+When enabled, each firing alert will include action buttons. Clicking a button will:
+1. Perform the action (silence/acknowledge)
+2. Add a thread reply with action details (who, when)
+3. Update the post to show the action status
+
+Example thread reply for ACK:
+```
+👁️ Alert Acknowledged
+
+By: @johndoe
+At: Thu, 21 Nov 2024 10:05:00 UTC
+```
+
+## Severity-Based Mentions 🆕
+
+Automatically mention teams or users based on alert severity:
+
+### Configuration
+Configure mentions in the plugin settings:
+
+```json
+{
+  "SeverityMentions": {
+    "critical": "@devops-oncall @sre-team",
+    "warning": "@devops",
+    "info": ""
+  }
+}
+```
+
+### Behavior
+When an alert fires, the plugin checks the alert's `severity` label and adds the configured mentions to the post message. This ensures critical alerts immediately notify the right people.
+
+Example post:
+```
+@devops-oncall @sre-team
+
+[Alert attachment with details...]
+```
+
+## Custom Alert Templates 🆕
+
+Customize how alerts are displayed using Go templates:
+
+### Configuration
+Configure custom templates in the plugin settings:
+
+```json
+{
+  "FiringTemplate": "🔥 **{{ .Labels.alertname }}**\n\n{{ if .Annotations.summary }}**Summary:** {{ .Annotations.summary }}{{ end }}\n**Severity:** {{ .Labels.severity }}\n**Started at:** {{ formatTime .StartsAt }}",
+
+  "ResolvedTemplate": "✅ **{{ .Labels.alertname }} - RESOLVED**\n\n**Duration:** {{ .EndsAt.Sub .StartsAt }}"
+}
+```
+
+### Template Functions
+Available template functions:
+- `formatTime` - Format time as RFC1123 (e.g., "Thu, 21 Nov 2024 10:00:00 UTC")
+- `toUpper` - Convert string to uppercase
+- Standard Go template functions
+
+### Template Data
+Templates have access to the full Prometheus alert object:
+- `.Labels` - Alert labels (map[string]string)
+- `.Annotations` - Alert annotations (map[string]string)
+- `.StartsAt` - Alert start time
+- `.EndsAt` - Alert end time (for resolved alerts)
+- `.GeneratorURL` - Link to the alert in Prometheus
+- `.Fingerprint` - Unique alert identifier
+
+### Behavior
+- If custom templates are configured, they replace the default attachment formatting
+- If template rendering fails, the plugin falls back to default formatting
+- Severity mentions and action buttons still work with custom templates
 
 ## Known Issues and Solutions
 
@@ -66,8 +188,9 @@ Detailed logging for troubleshooting:
 **Webhook Logging:**
 ```
 [WEBHOOK] Received notification: config_id=0, config_channel=alerts-dev
-[WEBHOOK] Sending alert to channel: channel_id=xxx
-[WEBHOOK] Successfully posted alert
+[WEBHOOK] Processing alert: fingerprint=abc123, alert_status=firing
+[WEBHOOK] Created post for firing alert: post_id=xyz
+[WEBHOOK] Updated post for resolved alert: duration=10m
 ```
 
 **Error Logging:**
@@ -76,48 +199,119 @@ Detailed logging for troubleshooting:
 [HTTP] No matching token found
 ```
 
+**Supported Mattermost Server Versions: 5.37+**
+
 ## Installation
 
-[... остальная часть README остается без изменений ...]
+1. Go to the [releases page of this GitHub repository](https://github.com/cpanato/mattermost-plugin-alertmanager/releases) and download the latest release for your Mattermost server.
+2. Upload this file in the Mattermost **System Console > Plugins > Management** page to install the plugin, and enable it. To learn more about how to upload a plugin, [see the documentation](https://docs.mattermost.com/administration/plugins.html#plugin-uploads).
+
+Next, to configure the plugin, follow these steps:
+
+3. After you've uploaded the plugin in **System Console > Plugins > Management**, go to the plugin's settings page at **System Console > Plugins > AlertManager**.
+4. Specify the team and channel to send messages to. For each, use the URL of the team or channel instead of their respective display names.
+5. Specify the AlertManager Server URL.
+6. Generate the Token that will be use to validate the requests.
+7. Hit **Save** (the plugin will automatically reload channel mappings).
+8. Next, copy the **Token** above the **Save** button, which is used to configure the plugin for your AlertManager account.
+9. Go to your Alertmanager configuration, paste the following webhook URL and specify the name of the service and the token you copied in step 8.
+10. Invite the `@alertmanagerbot` user to your target team and channel.
+
+```
+https://SITEURL/plugins/alertmanager/api/webhook?token=TOKEN
+```
+Sometimes the token has to be quoted.
+
+Example alertmanager config:
+
+```yaml
+webhook_configs:
+  - send_resolved: true  # IMPORTANT: Set to true to enable resolved alert updates
+    url: "https://mattermost.example.org/plugins/alertmanager/api/webhook?token='xxxxxxxxxxxxxxxxxxx-yyyyyyy'"
+```
+
+**Important:** Make sure to set `send_resolved: true` in your AlertManager webhook configuration to enable the resolved alert feature!
 
 ## Multiple AlertManager Configurations Example
-```yaml
-# Mattermost Plugin: 3 configs with different tokens/channels
-# Config #0: alerts-prod, token-prod-xxx
-# Config #1: alerts-dev, token-dev-yyy  
-# Config #2: alerts-ops, token-ops-zzz
 
-# AlertManager config:
+You can configure multiple AlertManager instances or routes to different Mattermost channels:
+
+```yaml
+# In Mattermost Plugin Settings, configure:
+# Config #0: Team=myteam, Channel=alerts-prod, Token=token-prod-xxx
+# Config #1: Team=myteam, Channel=alerts-dev, Token=token-dev-yyy
+# Config #2: Team=myteam, Channel=alerts-ops, Token=token-ops-zzz
+
+# In AlertManager configuration:
 receivers:
   - name: 'mattermost-prod'
     webhook_configs:
-      - url: 'https://chat.example.com/plugins/alertmanager/api/webhook?token=token-prod-xxx'
+      - send_resolved: true
+        url: 'https://mattermost.example.org/plugins/alertmanager/api/webhook?token=token-prod-xxx'
+  
   - name: 'mattermost-dev'
     webhook_configs:
-      - url: 'https://chat.example.com/plugins/alertmanager/api/webhook?token=token-dev-yyy'
+      - send_resolved: true
+        url: 'https://mattermost.example.org/plugins/alertmanager/api/webhook?token=token-dev-yyy'
+  
+  - name: 'mattermost-ops'
+    webhook_configs:
+      - send_resolved: true
+        url: 'https://mattermost.example.org/plugins/alertmanager/api/webhook?token=token-ops-zzz'
 
 route:
-  receiver: 'mattermost-prod'
+  receiver: 'mattermost-prod'  # default
   routes:
     - receiver: 'mattermost-dev'
       matchers:
         - k8s_cluster_name = dev
+    
+    - receiver: 'mattermost-ops'
+      matchers:
+        - k8s_cluster_name = ops
 ```
 
-Verify with `/alertmanager config` after setup.
+After configuration, verify with `/alertmanager config` command to ensure all mappings are correct.
+
+## Plugin in Action
+
+![alertmanager-bot-1](assets/alertmanager-1.png)
+![alertmanager-bot-2](assets/alertmanager-2.png)
+![alertmanager-bot-3](assets/alertmanager-3.png)
+
+## Development
+
+To build the plugin:
+```bash
+make dist
+```
+
+The built plugin will be in `dist/` directory.
 
 ## Troubleshooting
 
 ### Alerts going to wrong channels
 
-1. Run `/alertmanager config` to verify mappings
-2. Check logs for `[WEBHOOK]` entries
-3. Run `/alertmanager reload` to refresh
-4. Verify channel names match exactly
+1. Run `/alertmanager config` to verify channel mappings
+2. Check Mattermost logs for `[WEBHOOK]` entries to see which config received the alert
+3. Verify AlertManager routing configuration matches plugin token configuration
+4. Run `/alertmanager reload` to refresh mappings
+5. Check that channel names in plugin config exactly match Mattermost channel names
 
 ### Plugin not receiving webhooks
 
-1. Check logs for `[HTTP]` entries
-2. Verify webhook URL is accessible
-3. Check token matches plugin config
-4. Ensure bot is invited to channels
+1. Check Mattermost logs for `[HTTP]` entries
+2. Verify the webhook URL is accessible from AlertManager
+3. Check token in URL matches plugin configuration
+4. Ensure `@alertmanagerbot` is invited to target channels
+
+### Resolved alerts not updating posts
+
+1. Verify `send_resolved: true` is set in AlertManager webhook configuration
+2. Check logs for `[WEBHOOK] Updated post for resolved alert` messages
+3. Ensure the alert has the same fingerprint when firing and resolving
+4. Check that the original post wasn't manually deleted
+
+### Need more detailed logs
+
+Set Mattermost log level to DEBUG in System Console to see detailed webhook processing logs including alert fingerprints and post IDs.

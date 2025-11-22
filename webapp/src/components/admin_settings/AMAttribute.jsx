@@ -1,4 +1,5 @@
 import React, { useState, useEffect} from 'react';
+import PropTypes from 'prop-types';
 import crypto from 'crypto';
 
 const AMAttribute = (props) => {
@@ -7,13 +8,19 @@ const AMAttribute = (props) => {
         channel: "",
         team: "",
         token: "",
-
+        enableactions: false,
+        severitymentions: "",
+        firingtemplate: "",
+        resolvedtemplate: "",
     } : {
         alertmanagerurl: props.attributes.alertmanagerurl? props.attributes.alertmanagerurl: "",
         channel: props.attributes.channel? props.attributes.channel : "",
         team: props.attributes.team ? props.attributes.team: "",
         token: props.attributes.token? props.attributes.token: "",
-
+        enableactions: props.attributes.enableactions? props.attributes.enableactions: false,
+        severitymentions: props.attributes.severitymentions? JSON.stringify(props.attributes.severitymentions): "",
+        firingtemplate: props.attributes.firingtemplate? props.attributes.firingtemplate: "",
+        resolvedtemplate: props.attributes.resolvedtemplate? props.attributes.resolvedtemplate: "",
     };
 
     const initErrors = {
@@ -70,6 +77,62 @@ const AMAttribute = (props) => {
         props.onChange({id: props.id, attributes: newSettings});
     }
 
+    const handleEnableActionsChange = (e) => {
+        let newSettings = {...settings};
+        newSettings = {...newSettings, enableactions: e.target.checked};
+
+        setSettings(newSettings);
+        props.onChange({id: props.id, attributes: newSettings});
+    }
+
+    const handleSeverityMentionsInput = (e) => {
+        let newSettings = {...settings};
+        let severityMentionsValue = e.target.value;
+
+        // Try to parse JSON for validation
+        try {
+            if (severityMentionsValue.trim() !== '') {
+                JSON.parse(severityMentionsValue);
+            }
+        } catch (err) {
+            // Invalid JSON, but still save the string for user to fix
+        }
+
+        newSettings = {...newSettings, severitymentions: severityMentionsValue};
+
+        setSettings(newSettings);
+
+        // Convert string to object when saving
+        let attributesToSave = {...newSettings};
+        if (severityMentionsValue.trim() !== '') {
+            try {
+                attributesToSave.severitymentions = JSON.parse(severityMentionsValue);
+            } catch (err) {
+                // Keep as string if invalid JSON
+            }
+        } else {
+            attributesToSave.severitymentions = {};
+        }
+
+        props.onChange({id: props.id, attributes: attributesToSave});
+    }
+
+    const handleFiringTemplateInput = (e) => {
+        let newSettings = {...settings};
+        newSettings = {...newSettings, firingtemplate: e.target.value};
+
+        setSettings(newSettings);
+        props.onChange({id: props.id, attributes: newSettings});
+    }
+
+    const handleResolvedTemplateInput = (e) => {
+        let newSettings = {...settings};
+        newSettings = {...newSettings, resolvedtemplate: e.target.value};
+
+        setSettings(newSettings);
+        props.onChange({id: props.id, attributes: newSettings});
+    }
+
     const handleDelete = (e) => {
         props.onDelete(props.id);
     }
@@ -99,6 +162,49 @@ const AMAttribute = (props) => {
                     id={`PluginSettings.Plugins.alertmanager.${settingName + "." + settings.id}`}
                     className="form-control"
                     type="input"
+                    onChange={onChangeFunction}
+                    value={settings[settingName]}
+                />
+                <div className="help-text">
+                    {helpTextJSX}
+                </div>
+            </div>
+        </div>
+        );
+    }
+
+    const generateCheckboxSetting = ( title, settingName, onChangeFunction, helpTextJSX) => {
+        return (
+            <div className="form-group" >
+            <label className="control-label col-sm-4">
+                {title}
+            </label>
+            <div className="col-sm-8">
+                <input
+                    id={`PluginSettings.Plugins.alertmanager.${settingName + "." + settings.id}`}
+                    type="checkbox"
+                    onChange={onChangeFunction}
+                    checked={settings[settingName]}
+                />
+                <div className="help-text">
+                    {helpTextJSX}
+                </div>
+            </div>
+        </div>
+        );
+    }
+
+    const generateTextareaSetting = ( title, settingName, onChangeFunction, helpTextJSX) => {
+        return (
+            <div className="form-group" >
+            <label className="control-label col-sm-4">
+                {title}
+            </label>
+            <div className="col-sm-8">
+                <textarea
+                    id={`PluginSettings.Plugins.alertmanager.${settingName + "." + settings.id}`}
+                    className="form-control"
+                    rows="3"
                     onChange={onChangeFunction}
                     value={settings[settingName]}
                 />
@@ -181,6 +287,38 @@ const AMAttribute = (props) => {
                         "alertmanagerurl",
                         handleURLInput,
                         (<span>{"The URL of your AlertManager instance, e.g. \'"}<a href="http://alertmanager.example.com/" rel="noopener noreferrer" target="_blank">{"http://alertmanager.example.com/"}</a>{"\'"}</span>)
+                        )
+                    }
+
+                    { generateCheckboxSetting(
+                        "Enable Action Buttons:",
+                        "enableactions",
+                        handleEnableActionsChange,
+                        (<span>{"Enable interactive action buttons (Silence/ACK/UNACK) on alert posts"}</span>)
+                        )
+                    }
+
+                    { generateTextareaSetting(
+                        "Severity Mentions:",
+                        "severitymentions",
+                        handleSeverityMentionsInput,
+                        (<span>{"JSON object mapping severity levels to mentions, e.g. "}<code>{'{"critical": "@devops-oncall", "warning": "@devops"}'}</code></span>)
+                        )
+                    }
+
+                    { generateTextareaSetting(
+                        "Firing Alert Template:",
+                        "firingtemplate",
+                        handleFiringTemplateInput,
+                        (<span>{"Custom Go template for firing alerts. Leave empty to use default formatting. Available fields: .Labels, .Annotations, .StartsAt, .GeneratorURL"}</span>)
+                        )
+                    }
+
+                    { generateTextareaSetting(
+                        "Resolved Alert Template:",
+                        "resolvedtemplate",
+                        handleResolvedTemplateInput,
+                        (<span>{"Custom Go template for resolved alerts. Leave empty to use default formatting. Available fields: .Labels, .Annotations, .StartsAt, .EndsAt"}</span>)
                         )
                     }
                 </div>

@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -32,6 +33,79 @@ type Plugin struct {
 
 	// configurationLock synchronizes access to the configuration.
 	configurationLock sync.RWMutex
+}
+
+// Helper functions for alert fingerprint -> post ID mapping
+func (p *Plugin) getAlertPostKey(fingerprint string) string {
+	return fmt.Sprintf("alert_post_%s", fingerprint)
+}
+
+func (p *Plugin) saveAlertPost(fingerprint, postID string) error {
+	key := p.getAlertPostKey(fingerprint)
+	return p.API.KVSet(key, []byte(postID))
+}
+
+func (p *Plugin) getAlertPost(fingerprint string) (string, error) {
+	key := p.getAlertPostKey(fingerprint)
+	data, appErr := p.API.KVGet(key)
+	if appErr != nil {
+		return "", appErr
+	}
+	if data == nil {
+		return "", nil
+	}
+	return string(data), nil
+}
+
+func (p *Plugin) deleteAlertPost(fingerprint string) error {
+	key := p.getAlertPostKey(fingerprint)
+	return p.API.KVDelete(key)
+}
+
+// Helper functions for alert acknowledgment
+func (p *Plugin) getAlertAckKey(fingerprint string) string {
+	return fmt.Sprintf("alert_ack_%s", fingerprint)
+}
+
+type AlertAck struct {
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+func (p *Plugin) ackAlert(fingerprint, userID, username string) error {
+	ack := AlertAck{
+		UserID:    userID,
+		Username:  username,
+		Timestamp: model.GetMillis(),
+	}
+	data, err := json.Marshal(ack)
+	if err != nil {
+		return err
+	}
+	key := p.getAlertAckKey(fingerprint)
+	return p.API.KVSet(key, data)
+}
+
+func (p *Plugin) unackAlert(fingerprint string) error {
+	key := p.getAlertAckKey(fingerprint)
+	return p.API.KVDelete(key)
+}
+
+func (p *Plugin) getAlertAck(fingerprint string) (*AlertAck, error) {
+	key := p.getAlertAckKey(fingerprint)
+	data, appErr := p.API.KVGet(key)
+	if appErr != nil {
+		return nil, appErr
+	}
+	if data == nil {
+		return nil, nil
+	}
+	var ack AlertAck
+	if err := json.Unmarshal(data, &ack); err != nil {
+		return nil, err
+	}
+	return &ack, nil
 }
 
 func (p *Plugin) OnDeactivate() error {
@@ -145,6 +219,12 @@ func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Req
 	if r.Method == http.MethodGet {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Mattermost AlertManager Plugin"))
+		return
+	}
+
+	// Handle action buttons (no token required)
+	if r.URL.Path == "/api/action" {
+		p.handleAlertAction(w, r)
 		return
 	}
 

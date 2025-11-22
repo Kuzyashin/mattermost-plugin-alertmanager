@@ -30,7 +30,11 @@ const CustomAttributesSettings = (props) => {
                 alertmanagerurl: '',
                 channel: '',
                 team: '',
-                token: ''
+                token: '',
+                enableactions: false,
+                severitymentions: {},
+                firingtemplate: '',
+                resolvedtemplate: ''
             }
         };
 
@@ -96,7 +100,11 @@ const CustomAttributesSettings = (props) => {
                         team: value.team,
                         channel: value.channel,
                         token: value.token,
-                        alertmanagerurl: value.alertmanagerurl
+                        alertmanagerurl: value.alertmanagerurl,
+                        enableactions: value.enableactions,
+                        severitymentions: value.severitymentions,
+                        firingtemplate: value.firingtemplate,
+                        resolvedtemplate: value.resolvedtemplate
                     }}
                 />
             );
