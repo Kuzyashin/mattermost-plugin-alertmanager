@@ -1,4 +1,4 @@
-module github.com/Kuzyasin/mattermost-plugin-alertmanager
+module github.com/Kuzyashin/mattermost-plugin-alertmanager
 
 go 1.24.0
 

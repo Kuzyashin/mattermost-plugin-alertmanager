@@ -17,7 +17,7 @@ checksum:
 
 release:
   github:
-    owner: Kuzyasin
+    owner: Kuzyashin
     name: mattermost-plugin-alertmanager
 
   extra_files:

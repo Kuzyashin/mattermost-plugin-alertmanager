@@ -228,7 +228,7 @@ Detailed logging for troubleshooting:
 
 ## Installation
 
-1. Go to the [releases page of this GitHub repository](https://github.com/Kuzyasin/mattermost-plugin-alertmanager/releases) and download the latest release for your Mattermost server.
+1. Go to the [releases page of this GitHub repository](https://github.com/Kuzyashin/mattermost-plugin-alertmanager/releases) and download the latest release for your Mattermost server.
 2. Upload this file in the Mattermost **System Console > Plugins > Management** page to install the plugin, and enable it. To learn more about how to upload a plugin, [see the documentation](https://docs.mattermost.com/administration/plugins.html#plugin-uploads).
 
 Next, to configure the plugin, follow these steps:

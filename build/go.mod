@@ -1,4 +1,4 @@
-module github.com/Kuzyasin/mattermost-plugin-statuspage/build
+module github.com/Kuzyashin/mattermost-plugin-statuspage/build
 
 go 1.24
 
