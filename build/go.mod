@@ -1,6 +1,6 @@
-module github.com/cpanato/mattermost-plugin-statuspage/build
+module github.com/Kuzyasin/mattermost-plugin-statuspage/build
 
-go 1.17
+go 1.24
 
 require (
 	github.com/mattermost/mattermost-server/v6 v6.5.2

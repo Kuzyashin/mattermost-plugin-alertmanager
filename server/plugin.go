@@ -12,7 +12,7 @@ import (
 	"github.com/mattermost/mattermost-server/v6/model"
 	"github.com/mattermost/mattermost-server/v6/plugin"
 
-	root "github.com/cpanato/mattermost-plugin-alertmanager"
+	root "github.com/Kuzyasin/mattermost-plugin-alertmanager"
 )
 
 var (

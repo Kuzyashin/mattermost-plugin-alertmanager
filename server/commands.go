@@ -13,7 +13,7 @@ import (
 	"github.com/mattermost/mattermost-server/v6/model"
 	"github.com/mattermost/mattermost-server/v6/plugin"
 
-	"github.com/cpanato/mattermost-plugin-alertmanager/server/alertmanager"
+	"github.com/Kuzyasin/mattermost-plugin-alertmanager/server/alertmanager"
 )
 
 const (

@@ -1,4 +1,4 @@
-module github.com/cpanato/mattermost-plugin-alertmanager
+module github.com/Kuzyasin/mattermost-plugin-alertmanager
 
 go 1.24.0
 

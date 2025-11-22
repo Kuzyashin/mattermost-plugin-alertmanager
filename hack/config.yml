@@ -24,4 +24,4 @@ receivers:
 - name: 'mattermost-alertmananger'
   webhook_configs:
   - send_resolved: true
-    url: 'https://cpanato-outrider.eu.ngrok.io/plugins/alertmanager/api/webhook?token=FR2kDopHGgydR7Zhtyrxvz-8a6Pjavai'
+    url: 'https://Kuzyasin-outrider.eu.ngrok.io/plugins/alertmanager/api/webhook?token=FR2kDopHGgydR7Zhtyrxvz-8a6Pjavai'
