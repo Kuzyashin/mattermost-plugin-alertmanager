@@ -165,47 +165,54 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 
 	// Add action buttons if enabled
 	if alertConfig.EnableActions {
-		siteURL := *p.API.GetConfig().ServiceSettings.SiteURL
-		actions := []*model.PostAction{
-			{
-				Name: "🔕 Silence 1h",
-				Type: model.PostActionTypeButton,
-				Integration: &model.PostActionIntegration{
-					URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
-					Context: map[string]interface{}{
-						"action":      "silence",
-						"fingerprint": fingerprint,
-						"config_id":   alertConfig.ID,
-						"duration":    "1h",
+		config := p.API.GetConfig()
+		if config == nil || config.ServiceSettings.SiteURL == nil || *config.ServiceSettings.SiteURL == "" {
+			p.API.LogWarn("[WEBHOOK] SiteURL is not configured, action buttons will not work",
+				"config_nil", config == nil,
+			)
+		} else {
+			siteURL := *config.ServiceSettings.SiteURL
+			actions := []*model.PostAction{
+				{
+					Name: "🔕 Silence 1h",
+					Type: model.PostActionTypeButton,
+					Integration: &model.PostActionIntegration{
+						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
+						Context: map[string]interface{}{
+							"action":      "silence",
+							"fingerprint": fingerprint,
+							"config_id":   alertConfig.ID,
+							"duration":    "1h",
+						},
 					},
 				},
-			},
-			{
-				Name: "🔕 Silence 4h",
-				Type: model.PostActionTypeButton,
-				Integration: &model.PostActionIntegration{
-					URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
-					Context: map[string]interface{}{
-						"action":      "silence",
-						"fingerprint": fingerprint,
-						"config_id":   alertConfig.ID,
-						"duration":    "4h",
+				{
+					Name: "🔕 Silence 4h",
+					Type: model.PostActionTypeButton,
+					Integration: &model.PostActionIntegration{
+						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
+						Context: map[string]interface{}{
+							"action":      "silence",
+							"fingerprint": fingerprint,
+							"config_id":   alertConfig.ID,
+							"duration":    "4h",
+						},
 					},
 				},
-			},
-			{
-				Name: "👁️ ACK",
-				Type: model.PostActionTypeButton,
-				Integration: &model.PostActionIntegration{
-					URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
-					Context: map[string]interface{}{
-						"action":      "ack",
-						"fingerprint": fingerprint,
+				{
+					Name: "👁️ ACK",
+					Type: model.PostActionTypeButton,
+					Integration: &model.PostActionIntegration{
+						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
+						Context: map[string]interface{}{
+							"action":      "ack",
+							"fingerprint": fingerprint,
+						},
 					},
 				},
-			},
+			}
+			attachment.Actions = actions
 		}
-		attachment.Actions = actions
 	}
 
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{attachment})
@@ -215,6 +222,14 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 			"channel_id", channelID,
 			"fingerprint", fingerprint,
 			"error", appErr.Error(),
+		)
+		return
+	}
+
+	if createdPost == nil {
+		p.API.LogError("[WEBHOOK] CreatePost returned nil post without error",
+			"channel_id", channelID,
+			"fingerprint", fingerprint,
 		)
 		return
 	}

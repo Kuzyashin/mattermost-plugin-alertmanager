@@ -9,7 +9,8 @@ Forked and inspired on https://github.com/metalmatze/alertmanager-bot the alertm
 - Receive the Alerts via webhook
 - **NEW:** Smart alert lifecycle management - firing alerts create posts, resolved alerts update them ✅
 - **NEW:** Thread replies with resolution timing information
-- **NEW:** Interactive action buttons (Silence/ACK/UNACK) 🎯
+- **NEW:** Interactive action buttons (Silence/ACK/UNACK) with dynamic button updates 🎯
+- **NEW:** Visual alert states - color-coded posts (red=firing, yellow=acknowledged, green=resolved) 🎨
 - **NEW:** Severity-based mentions (@team notifications) 📢
 - **NEW:** Custom alert templates for firing and resolved alerts 📝
 - Can list existing alerts
@@ -50,8 +51,9 @@ This approach keeps your channels clean and makes it easy to see alert duration 
 Enable interactive action buttons on alert posts for quick alert management:
 
 ### Available Actions
-- **🔕 Silence 1h / 4h** - Silence the alert for 1 or 4 hours
-- **👁️ ACK** - Acknowledge the alert (marks it as seen)
+- **🔕 Silence 1h / 4h** - Silence the alert for 1 or 4 hours in AlertManager
+- **👁️ ACK** - Acknowledge the alert (marks it as seen, changes color to yellow/orange)
+- **🔄 UNACK** - Unacknowledge the alert (removes acknowledgment, returns to red)
 
 ### Configuration
 Enable action buttons in the plugin configuration:
@@ -63,9 +65,16 @@ Enable action buttons in the plugin configuration:
 ```
 
 When enabled, each firing alert will include action buttons. Clicking a button will:
-1. Perform the action (silence/acknowledge)
+1. Perform the action (silence/acknowledge/unacknowledge)
 2. Add a thread reply with action details (who, when)
-3. Update the post to show the action status
+3. **Update the post** - change button states, colors, and status:
+   - **ACK**: Button changes from "👁️ ACK" → "🔄 UNACK", color changes from red → yellow/orange, status changes from "🔥 FIRING 🔥" → "👁️ ACKNOWLEDGED 👁️"
+   - **UNACK**: Button changes from "🔄 UNACK" → "👁️ ACK", color returns from yellow → red, status returns to "🔥 FIRING 🔥"
+
+### Visual Indicators
+- **🔥 FIRING (not acknowledged)**: Red color
+- **👁️ ACKNOWLEDGED**: Yellow/orange color
+- **✅ RESOLVED**: Green color
 
 Example thread reply for ACK:
 ```
@@ -73,6 +82,22 @@ Example thread reply for ACK:
 
 By: @johndoe
 At: Thu, 21 Nov 2024 10:05:00 UTC
+```
+
+Example thread reply for UNACK:
+```
+🔄 Alert Unacknowledged
+
+By: @johndoe
+At: Thu, 21 Nov 2024 10:15:00 UTC
+```
+
+Example thread reply for Silence:
+```
+🔕 Silenced for 1h
+
+By: @johndoe
+Until: Thu, 21 Nov 2024 11:05:00 UTC
 ```
 
 ## Severity-Based Mentions 🆕
@@ -287,6 +312,72 @@ make dist
 ```
 
 The built plugin will be in `dist/` directory.
+
+### Testing with curl
+
+You can test the plugin by sending a test alert:
+
+```bash
+# Test firing alert
+curl -X POST "https://YOUR-MATTERMOST-URL/plugins/alertmanager/api/webhook?token=YOUR-TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiver": "mattermost",
+    "status": "firing",
+    "alerts": [
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "TestAlert",
+          "severity": "critical",
+          "instance": "localhost:9090"
+        },
+        "annotations": {
+          "summary": "This is a test alert",
+          "description": "Testing the Mattermost AlertManager plugin"
+        },
+        "startsAt": "2024-11-22T10:00:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "generatorURL": "http://localhost:9090/graph",
+        "fingerprint": "test-alert-123"
+      }
+    ],
+    "externalURL": "http://localhost:9093"
+  }'
+
+# Test resolved alert (same fingerprint)
+curl -X POST "https://YOUR-MATTERMOST-URL/plugins/alertmanager/api/webhook?token=YOUR-TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiver": "mattermost",
+    "status": "resolved",
+    "alerts": [
+      {
+        "status": "resolved",
+        "labels": {
+          "alertname": "TestAlert",
+          "severity": "critical",
+          "instance": "localhost:9090"
+        },
+        "annotations": {
+          "summary": "This is a test alert",
+          "description": "Testing the Mattermost AlertManager plugin"
+        },
+        "startsAt": "2024-11-22T10:00:00Z",
+        "endsAt": "2024-11-22T10:10:00Z",
+        "generatorURL": "http://localhost:9090/graph",
+        "fingerprint": "test-alert-123"
+      }
+    ],
+    "externalURL": "http://localhost:9093"
+  }'
+```
+
+Replace:
+- `YOUR-MATTERMOST-URL` with your Mattermost server URL
+- `YOUR-TOKEN` with the token from your plugin configuration
+
+The first curl will create a firing alert (red), the second will resolve it (green) and add timing information to the thread.
 
 ## Troubleshooting
 

@@ -42,7 +42,11 @@ func (p *Plugin) getAlertPostKey(fingerprint string) string {
 
 func (p *Plugin) saveAlertPost(fingerprint, postID string) error {
 	key := p.getAlertPostKey(fingerprint)
-	return p.API.KVSet(key, []byte(postID))
+	appErr := p.API.KVSet(key, []byte(postID))
+	if appErr != nil {
+		return appErr
+	}
+	return nil
 }
 
 func (p *Plugin) getAlertPost(fingerprint string) (string, error) {
@@ -59,7 +63,11 @@ func (p *Plugin) getAlertPost(fingerprint string) (string, error) {
 
 func (p *Plugin) deleteAlertPost(fingerprint string) error {
 	key := p.getAlertPostKey(fingerprint)
-	return p.API.KVDelete(key)
+	appErr := p.API.KVDelete(key)
+	if appErr != nil {
+		return appErr
+	}
+	return nil
 }
 
 // Helper functions for alert acknowledgment
@@ -84,12 +92,20 @@ func (p *Plugin) ackAlert(fingerprint, userID, username string) error {
 		return err
 	}
 	key := p.getAlertAckKey(fingerprint)
-	return p.API.KVSet(key, data)
+	appErr := p.API.KVSet(key, data)
+	if appErr != nil {
+		return appErr
+	}
+	return nil
 }
 
 func (p *Plugin) unackAlert(fingerprint string) error {
 	key := p.getAlertAckKey(fingerprint)
-	return p.API.KVDelete(key)
+	appErr := p.API.KVDelete(key)
+	if appErr != nil {
+		return appErr
+	}
+	return nil
 }
 
 func (p *Plugin) getAlertAck(fingerprint string) (*AlertAck, error) {

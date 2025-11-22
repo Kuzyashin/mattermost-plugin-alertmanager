@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -28,10 +29,43 @@ type alertConfig struct {
 	Channel          string
 	Team             string
 	AlertManagerURL  string
-	SeverityMentions map[string]string // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
-	EnableActions    bool              // Enable Silence/ACK/UNACK buttons
-	FiringTemplate   string            // Custom template for firing alerts
-	ResolvedTemplate string            // Custom template for resolved alerts
+	SeverityMentions SeverityMentionsMap // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
+	EnableActions    bool                // Enable Silence/ACK/UNACK buttons
+	FiringTemplate   string              // Custom template for firing alerts
+	ResolvedTemplate string              // Custom template for resolved alerts
+}
+
+// SeverityMentionsMap is a custom type that handles both string (JSON) and map unmarshaling
+type SeverityMentionsMap map[string]string
+
+// UnmarshalJSON implements custom unmarshaling to handle both string and map
+func (s *SeverityMentionsMap) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as a map first
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err == nil {
+		*s = SeverityMentionsMap(m)
+		return nil
+	}
+
+	// If that fails, try to unmarshal as a string (JSON string)
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+
+	// Parse the JSON string
+	if str == "" {
+		*s = make(SeverityMentionsMap)
+		return nil
+	}
+
+	var m2 map[string]string
+	if err := json.Unmarshal([]byte(str), &m2); err != nil {
+		return err
+	}
+
+	*s = SeverityMentionsMap(m2)
+	return nil
 }
 
 func (ac *alertConfig) IsValid() error {
