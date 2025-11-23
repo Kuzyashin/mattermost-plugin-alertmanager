@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mattermost/mattermost-server/v6/model"
+	"github.com/mattermost/mattermost/server/public/model"
 
 	"github.com/Kuzyashin/mattermost-plugin-alertmanager/server/alertmanager"
 )
@@ -14,15 +14,19 @@ func (p *Plugin) handleExpireAction(w http.ResponseWriter, r *http.Request, aler
 	p.API.LogInfo("Received expire silence action")
 
 	var action *Action
-	_ = json.NewDecoder(r.Body).Decode(&action)
+	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
+		p.API.LogError("Failed to decode action", "error", err.Error())
+		encodeEphemeralMessage(w, "We could not decode the action")
+		return
+	}
 
 	if action == nil {
-		encodeEphermalMessage(w, "We could not decode the action")
+		encodeEphemeralMessage(w, "We could not decode the action")
 		return
 	}
 
 	if action.Context.SilenceID == "" {
-		encodeEphermalMessage(w, "Silence ID cannot be empty")
+		encodeEphemeralMessage(w, "Silence ID cannot be empty")
 		return
 	}
 
@@ -31,7 +35,8 @@ func (p *Plugin) handleExpireAction(w http.ResponseWriter, r *http.Request, aler
 	err := alertmanager.ExpireSilence(action.Context.SilenceID, alertConfig.AlertManagerURL)
 	if err != nil {
 		msg := fmt.Sprintf("failed to expire the silence: %v", err)
-		encodeEphermalMessage(w, msg)
+		encodeEphemeralMessage(w, msg)
+		return
 	}
 
 	updatePost := &model.Post{}
@@ -85,19 +90,22 @@ func (p *Plugin) handleExpireAction(w http.ResponseWriter, r *http.Request, aler
 		updatePost.ChannelId = actionPost.ChannelId
 		updatePost.UserId = actionPost.UserId
 		if _, err := p.API.UpdatePost(updatePost); err != nil {
-			encodeEphermalMessage(w, silenceDeletedMsg)
+			encodeEphemeralMessage(w, silenceDeletedMsg)
 			return
 		}
 	}
 
-	encodeEphermalMessage(w, silenceDeletedMsg)
+	encodeEphemeralMessage(w, silenceDeletedMsg)
 }
 
-func encodeEphermalMessage(w http.ResponseWriter, message string) {
+func encodeEphemeralMessage(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	payload := map[string]interface{}{
 		"ephemeral_text": message,
 	}
 
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		// Log error but can't return it since response is already being written
+		fmt.Printf("Failed to encode ephemeral message: %v\n", err)
+	}
 }

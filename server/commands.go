@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/hako/durafmt"
+	"github.com/mattermost/mattermost/server/public/plugin"
 	"github.com/prometheus/alertmanager/types"
 
-	"github.com/mattermost/mattermost-plugin-api/experimental/command"
-	"github.com/mattermost/mattermost-server/v6/model"
-	"github.com/mattermost/mattermost-server/v6/plugin"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/pluginapi/experimental/command"
 
 	"github.com/Kuzyashin/mattermost-plugin-alertmanager/server/alertmanager"
 )
@@ -29,7 +29,7 @@ const (
 	/alertmanager status - to list the version and uptime of the Alertmanager instance
 	/alertmanager reload - reload channel configuration and mappings
 	/alertmanager config - display current channel mappings
-	/alertmanager help - display Slash Command help text"
+	/alertmanager help - display Slash Command help text
 	/alertmanager about - display build information
 	`
 )

@@ -33,6 +33,8 @@ const CustomAttributesSettings = (props) => {
                 token: '',
                 enableactions: false,
                 severitymentions: {},
+                statecolors: {},
+                severitycolors: {},
                 firingtemplate: '',
                 resolvedtemplate: ''
             }

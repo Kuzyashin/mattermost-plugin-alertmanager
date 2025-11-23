@@ -1,6 +1,7 @@
 import React, { useState, useEffect} from 'react';
 import PropTypes from 'prop-types';
 import crypto from 'crypto';
+import ColorMapEditor from './ColorMapEditor';
 
 const AMAttribute = (props) => {
     const initialSettings = props.attributes === undefined || Object.keys(props.attributes).length === 0 ? {
@@ -10,6 +11,8 @@ const AMAttribute = (props) => {
         token: "",
         enableactions: false,
         severitymentions: "",
+        statecolors: {},
+        severitycolors: {},
         firingtemplate: "",
         resolvedtemplate: "",
     } : {
@@ -19,6 +22,8 @@ const AMAttribute = (props) => {
         token: props.attributes.token? props.attributes.token: "",
         enableactions: props.attributes.enableactions? props.attributes.enableactions: false,
         severitymentions: props.attributes.severitymentions? JSON.stringify(props.attributes.severitymentions): "",
+        statecolors: props.attributes.statecolors || {},
+        severitycolors: props.attributes.severitycolors || {},
         firingtemplate: props.attributes.firingtemplate? props.attributes.firingtemplate: "",
         resolvedtemplate: props.attributes.resolvedtemplate? props.attributes.resolvedtemplate: "",
     };
@@ -128,6 +133,22 @@ const AMAttribute = (props) => {
     const handleResolvedTemplateInput = (e) => {
         let newSettings = {...settings};
         newSettings = {...newSettings, resolvedtemplate: e.target.value};
+
+        setSettings(newSettings);
+        props.onChange({id: props.id, attributes: newSettings});
+    }
+
+    const handleStateColorsChange = (colors) => {
+        let newSettings = {...settings};
+        newSettings = {...newSettings, statecolors: colors};
+
+        setSettings(newSettings);
+        props.onChange({id: props.id, attributes: newSettings});
+    }
+
+    const handleSeverityColorsChange = (colors) => {
+        let newSettings = {...settings};
+        newSettings = {...newSettings, severitycolors: colors};
 
         setSettings(newSettings);
         props.onChange({id: props.id, attributes: newSettings});
@@ -305,6 +326,72 @@ const AMAttribute = (props) => {
                         (<span>{"JSON object mapping severity levels to mentions, e.g. "}<code>{'{"critical": "@devops-oncall", "warning": "@devops"}'}</code></span>)
                         )
                     }
+
+                    <ColorMapEditor
+                        label="Alert State Colors"
+                        description="Customize colors for different alert states. Click the color swatch to change."
+                        value={settings.statecolors}
+                        onChange={handleStateColorsChange}
+                        colorOptions={[
+                            {
+                                key: 'firing',
+                                label: 'Firing',
+                                description: 'Color for alerts that are currently firing',
+                                default: '#FF0000',
+                            },
+                            {
+                                key: 'acked',
+                                label: 'Acknowledged',
+                                description: 'Color for alerts that have been acknowledged',
+                                default: '#9013FE',
+                            },
+                            {
+                                key: 'resolved',
+                                label: 'Resolved',
+                                description: 'Color for alerts that have been resolved',
+                                default: '#008000',
+                            },
+                        ]}
+                    />
+
+                    <ColorMapEditor
+                        label="Severity Level Colors"
+                        description="Customize colors for different severity levels. These override state colors for firing alerts."
+                        value={settings.severitycolors}
+                        onChange={handleSeverityColorsChange}
+                        colorOptions={[
+                            {
+                                key: 'critical',
+                                label: 'Critical',
+                                description: 'Color for critical severity alerts',
+                                default: '#FF0000',
+                            },
+                            {
+                                key: 'error',
+                                label: 'Error',
+                                description: 'Color for error severity alerts',
+                                default: '#F5A623',
+                            },
+                            {
+                                key: 'warning',
+                                label: 'Warning',
+                                description: 'Color for warning severity alerts',
+                                default: '#F8E71C',
+                            },
+                            {
+                                key: 'info',
+                                label: 'Info',
+                                description: 'Color for info severity alerts',
+                                default: '#0080FF',
+                            },
+                            {
+                                key: 'debug',
+                                label: 'Debug',
+                                description: 'Color for debug severity alerts',
+                                default: '#87CEEB',
+                            },
+                        ]}
+                    />
 
                     { generateTextareaSetting(
                         "Firing Alert Template:",

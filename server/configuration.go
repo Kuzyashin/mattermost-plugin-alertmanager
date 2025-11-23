@@ -24,15 +24,17 @@ type configuration struct {
 }
 
 type alertConfig struct {
-	EnableActions    bool // Enable Silence/ACK/UNACK buttons
+	SeverityMentions SeverityMentionsMap // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
+	StateColors      StateColorMap       // e.g. {"firing": "#FF0000", "acked": "#FFAA00", "resolved": "#008000"}
+	SeverityColors   SeverityColorMap    // e.g. {"critical": "#FF0000", "warning": "#FFA500", "info": "#0080FF"}
 	ID               string
 	Token            string
 	Channel          string
 	Team             string
 	AlertManagerURL  string
-	FiringTemplate   string              // Custom template for firing alerts
-	ResolvedTemplate string              // Custom template for resolved alerts
-	SeverityMentions SeverityMentionsMap // e.g. {"critical": "@devops-oncall", "warning": "@devops"}
+	FiringTemplate   string // Custom template for firing alerts
+	ResolvedTemplate string // Custom template for resolved alerts
+	EnableActions    bool   // Enable Silence/ACK/UNACK buttons
 }
 
 // SeverityMentionsMap is a custom type that handles both string (JSON) and map unmarshaling
@@ -65,6 +67,72 @@ func (s *SeverityMentionsMap) UnmarshalJSON(data []byte) error {
 	}
 
 	*s = SeverityMentionsMap(m2)
+	return nil
+}
+
+// StateColorMap maps alert states to colors (firing, acked, resolved)
+type StateColorMap map[string]string
+
+// UnmarshalJSON implements custom unmarshaling to handle both string and map
+func (s *StateColorMap) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as a map first
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err == nil {
+		*s = StateColorMap(m)
+		return nil
+	}
+
+	// If that fails, try to unmarshal as a string (JSON string)
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+
+	// Parse the JSON string
+	if str == "" {
+		*s = make(StateColorMap)
+		return nil
+	}
+
+	var m2 map[string]string
+	if err := json.Unmarshal([]byte(str), &m2); err != nil {
+		return err
+	}
+
+	*s = StateColorMap(m2)
+	return nil
+}
+
+// SeverityColorMap maps severity levels to colors (critical, warning, error, info, debug)
+type SeverityColorMap map[string]string
+
+// UnmarshalJSON implements custom unmarshaling to handle both string and map
+func (s *SeverityColorMap) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as a map first
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err == nil {
+		*s = SeverityColorMap(m)
+		return nil
+	}
+
+	// If that fails, try to unmarshal as a string (JSON string)
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+
+	// Parse the JSON string
+	if str == "" {
+		*s = make(SeverityColorMap)
+		return nil
+	}
+
+	var m2 map[string]string
+	if err := json.Unmarshal([]byte(str), &m2); err != nil {
+		return err
+	}
+
+	*s = SeverityColorMap(m2)
 	return nil
 }
 

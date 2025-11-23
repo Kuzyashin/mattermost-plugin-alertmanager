@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mattermost/mattermost-server/v6/model"
+	"github.com/mattermost/mattermost/server/public/model"
 )
 
 const (
@@ -58,6 +58,7 @@ func (p *Plugin) handleSilenceAction(w http.ResponseWriter, action Action) {
 	fingerprint := action.Context.Fingerprint
 	configID := action.Context.ConfigID
 	duration := action.Context.Duration
+	labels := action.Context.Labels
 
 	// Get config
 	config := p.getConfiguration()
@@ -84,12 +85,24 @@ func (p *Plugin) handleSilenceAction(w http.ResponseWriter, action Action) {
 		return
 	}
 
-	p.API.LogInfo("[ACTION] Creating silence",
+	p.API.LogInfo("[ACTION] Creating silence in AlertManager",
 		"fingerprint", fingerprint,
 		"duration", duration,
 		"user", user.Username,
 		"alertmanager_url", alertCfg.AlertManagerURL,
 	)
+
+	// Create silence in AlertManager
+	comment := fmt.Sprintf("Silenced from Mattermost by %s", user.Username)
+	silenceID, err := p.createSilence(alertCfg.AlertManagerURL, labels, dur, user.Username, comment)
+	if err != nil {
+		p.API.LogError("[ACTION] Failed to create silence in AlertManager",
+			"error", err.Error(),
+			"alertmanager_url", alertCfg.AlertManagerURL,
+		)
+		http.Error(w, fmt.Sprintf("Failed to create silence: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
 
 	// Update post to show it's silenced
 	post, appErr := p.API.GetPost(action.PostID)
@@ -99,12 +112,13 @@ func (p *Plugin) handleSilenceAction(w http.ResponseWriter, action Action) {
 		return
 	}
 
-	// Add thread reply
+	// Add thread reply with silence ID
 	threadMessage := fmt.Sprintf(
-		"🔕 **Silenced for %s**\n\nBy: @%s\nUntil: %s",
+		"🔕 **Silenced for %s**\n\nBy: @%s\nUntil: %s\nSilence ID: `%s`",
 		duration,
 		user.Username,
 		time.Now().Add(dur).Format(time.RFC1123),
+		silenceID,
 	)
 
 	threadPost := &model.Post{
@@ -131,6 +145,17 @@ func (p *Plugin) handleSilenceAction(w http.ResponseWriter, action Action) {
 
 func (p *Plugin) handleAckAction(w http.ResponseWriter, action Action) {
 	fingerprint := action.Context.Fingerprint
+	configID := action.Context.ConfigID
+	severity := action.Context.Severity
+
+	// Get config
+	config := p.getConfiguration()
+	alertCfg, ok := config.AlertConfigs[configID]
+	if !ok {
+		p.API.LogError("[ACTION] Config not found", "config_id", configID)
+		http.Error(w, "Config not found", http.StatusNotFound)
+		return
+	}
 
 	// Get user info
 	user, appErr := p.API.GetUser(action.UserID)
@@ -179,7 +204,7 @@ func (p *Plugin) handleAckAction(w http.ResponseWriter, action Action) {
 	)
 
 	// Update post buttons - replace ACK with UNACK
-	updatedAttachments := p.updateActionButtons(post, fingerprint, modeAckToUnack)
+	updatedAttachments := p.updateActionButtons(post, fingerprint, modeAckToUnack, alertCfg, severity)
 
 	// Update the post and return the update response
 	if updatedAttachments != nil {
@@ -223,6 +248,17 @@ func (p *Plugin) handleAckAction(w http.ResponseWriter, action Action) {
 
 func (p *Plugin) handleUnackAction(w http.ResponseWriter, action Action) {
 	fingerprint := action.Context.Fingerprint
+	configID := action.Context.ConfigID
+	severity := action.Context.Severity
+
+	// Get config
+	config := p.getConfiguration()
+	alertCfg, ok := config.AlertConfigs[configID]
+	if !ok {
+		p.API.LogError("[ACTION] Config not found", "config_id", configID)
+		http.Error(w, "Config not found", http.StatusNotFound)
+		return
+	}
 
 	// Get user info
 	user, appErr := p.API.GetUser(action.UserID)
@@ -271,7 +307,7 @@ func (p *Plugin) handleUnackAction(w http.ResponseWriter, action Action) {
 	)
 
 	// Update post buttons - replace UNACK with ACK
-	updatedAttachments := p.updateActionButtons(post, fingerprint, modeUnackToAck)
+	updatedAttachments := p.updateActionButtons(post, fingerprint, modeUnackToAck, alertCfg, severity)
 
 	// Update the post and return the update response
 	if updatedAttachments != nil {
@@ -315,7 +351,7 @@ func (p *Plugin) handleUnackAction(w http.ResponseWriter, action Action) {
 
 // updateActionButtons updates the action buttons in a post
 // mode: "ack_to_unack" or "unack_to_ack"
-func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string) []*model.SlackAttachment {
+func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string, alertCfg alertConfig, severity string) []*model.SlackAttachment {
 	// Get current attachments - they might be stored as []interface{}
 	attachmentsProp := post.GetProp("attachments")
 	if attachmentsProp == nil {
@@ -488,14 +524,14 @@ func (p *Plugin) updateActionButtons(post *model.Post, fingerprint, mode string)
 		attachments[0].Actions = newActions
 
 		// Update color and title when ACKed
-		if mode == "ack_to_unack" {
-			attachments[0].Color = "#FFAA00" // Yellow/Orange for acknowledged
+		if mode == modeAckToUnack {
+			attachments[0].Color = getAlertColor(alertCfg, severity, stateAcked)
 			// Update title in first field if it exists
 			if len(attachments[0].Fields) > 0 && attachments[0].Fields[0] != nil {
 				attachments[0].Fields[0].Title = "👁️ ACKNOWLEDGED 👁️"
 			}
-		} else if mode == "unack_to_ack" {
-			attachments[0].Color = colorFiring // Red for firing
+		} else if mode == modeUnackToAck {
+			attachments[0].Color = getAlertColor(alertCfg, severity, stateFiring)
 			// Restore firing title in first field if it exists
 			if len(attachments[0].Fields) > 0 && attachments[0].Fields[0] != nil {
 				attachments[0].Fields[0].Title = "🔥 FIRING 🔥"

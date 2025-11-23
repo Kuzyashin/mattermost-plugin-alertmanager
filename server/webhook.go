@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/template"
 
-	"github.com/mattermost/mattermost-server/v6/model"
+	"github.com/mattermost/mattermost/server/public/model"
 )
 
 const (
@@ -129,6 +129,9 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 		}
 	}
 
+	// Determine alert color based on severity and state
+	alertColor := getAlertColor(alertConfig, severity, stateFiring)
+
 	// Create attachment
 	var attachment *model.SlackAttachment
 
@@ -144,7 +147,7 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 			fields := ConvertAlertToFields(alertConfig, alert, externalURL, receiver)
 			attachment = &model.SlackAttachment{
 				Fields: fields,
-				Color:  colorFiring,
+				Color:  alertColor,
 			}
 		} else {
 			// Append custom template to message
@@ -155,7 +158,7 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 			}
 			// Create minimal attachment for action buttons
 			attachment = &model.SlackAttachment{
-				Color: colorFiring,
+				Color: alertColor,
 			}
 		}
 	} else {
@@ -163,7 +166,7 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 		fields := ConvertAlertToFields(alertConfig, alert, externalURL, receiver)
 		attachment = &model.SlackAttachment{
 			Fields: fields,
-			Color:  colorFiring,
+			Color:  alertColor,
 		}
 	}
 
@@ -176,9 +179,16 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 			)
 		} else {
 			siteURL := *config.ServiceSettings.SiteURL
+
+			// Prepare alert labels for silence creation
+			alertLabels := make(map[string]interface{})
+			for k, v := range alert.Labels {
+				alertLabels[k] = v
+			}
+
 			actions := []*model.PostAction{
 				{
-					Name: "🔕 Silence 1h",
+					Name: "🔕 1h",
 					Type: model.PostActionTypeButton,
 					Integration: &model.PostActionIntegration{
 						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
@@ -187,11 +197,12 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 							"fingerprint": fingerprint,
 							"config_id":   alertConfig.ID,
 							"duration":    "1h",
+							"labels":      alertLabels,
 						},
 					},
 				},
 				{
-					Name: "🔕 Silence 4h",
+					Name: "🔕 4h",
 					Type: model.PostActionTypeButton,
 					Integration: &model.PostActionIntegration{
 						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
@@ -200,6 +211,35 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 							"fingerprint": fingerprint,
 							"config_id":   alertConfig.ID,
 							"duration":    "4h",
+							"labels":      alertLabels,
+						},
+					},
+				},
+				{
+					Name: "🔕 12h",
+					Type: model.PostActionTypeButton,
+					Integration: &model.PostActionIntegration{
+						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
+						Context: map[string]interface{}{
+							"action":      "silence",
+							"fingerprint": fingerprint,
+							"config_id":   alertConfig.ID,
+							"duration":    "12h",
+							"labels":      alertLabels,
+						},
+					},
+				},
+				{
+					Name: "🔕 24h",
+					Type: model.PostActionTypeButton,
+					Integration: &model.PostActionIntegration{
+						URL: fmt.Sprintf("%s/plugins/%s/api/action", siteURL, Manifest.Id),
+						Context: map[string]interface{}{
+							"action":      "silence",
+							"fingerprint": fingerprint,
+							"config_id":   alertConfig.ID,
+							"duration":    "24h",
+							"labels":      alertLabels,
 						},
 					},
 				},
@@ -211,6 +251,8 @@ func (p *Plugin) handleFiringAlert(alertConfig alertConfig, alert template.Alert
 						Context: map[string]interface{}{
 							"action":      "ack",
 							"fingerprint": fingerprint,
+							"config_id":   alertConfig.ID,
+							"severity":    severity,
 						},
 					},
 				},
@@ -291,6 +333,10 @@ func (p *Plugin) handleResolvedAlert(alertConfig alertConfig, alert template.Ale
 	originalPost.Message = ""
 	originalPost.Props = make(model.StringInterface)
 
+	// Determine alert color for resolved state
+	severity := alert.Labels["severity"]
+	alertColor := getAlertColor(alertConfig, severity, stateResolved)
+
 	var attachment *model.SlackAttachment
 
 	// Use custom template if configured
@@ -305,13 +351,13 @@ func (p *Plugin) handleResolvedAlert(alertConfig alertConfig, alert template.Ale
 			fields := ConvertAlertToFieldsResolved(alertConfig, alert, externalURL, receiver)
 			attachment = &model.SlackAttachment{
 				Fields: fields,
-				Color:  colorResolved,
+				Color:  alertColor,
 			}
 		} else {
 			originalPost.Message = customMsg
 			// Create minimal attachment for color
 			attachment = &model.SlackAttachment{
-				Color: colorResolved,
+				Color: alertColor,
 			}
 		}
 	} else {
@@ -319,7 +365,7 @@ func (p *Plugin) handleResolvedAlert(alertConfig alertConfig, alert template.Ale
 		fields := ConvertAlertToFieldsResolved(alertConfig, alert, externalURL, receiver)
 		attachment = &model.SlackAttachment{
 			Fields: fields,
-			Color:  colorResolved,
+			Color:  alertColor,
 		}
 	}
 

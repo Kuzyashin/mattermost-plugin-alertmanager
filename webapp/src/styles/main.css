@@ -48,3 +48,91 @@
     font-weight: 600;
     font-size: 16px;
 }
+
+/* Color Map Editor Styles */
+.color-map-editor {
+    margin-bottom: 20px;
+}
+
+.color-map-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.color-map-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+}
+
+.color-map-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.color-map-label strong {
+    font-size: 14px;
+    color: #333;
+}
+
+.color-map-label .help-text {
+    font-size: 12px;
+    color: #666;
+    margin: 0;
+}
+
+.color-map-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.color-swatch-container {
+    position: relative;
+}
+
+.color-swatch {
+    width: 120px;
+    height: 38px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s;
+}
+
+.color-swatch:hover {
+    border-color: #999;
+}
+
+.color-hex {
+    color: #fff;
+    font-weight: 600;
+    font-size: 12px;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.color-picker-popover {
+    position: absolute;
+    z-index: 2;
+    top: 45px;
+    right: 0;
+}
+
+.color-picker-cover {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+}

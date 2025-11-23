@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	pluginapi "github.com/mattermost/mattermost-plugin-api"
-	"github.com/mattermost/mattermost-server/v6/model"
-	"github.com/mattermost/mattermost-server/v6/plugin"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin"
+	"github.com/mattermost/mattermost/server/public/pluginapi"
 
 	root "github.com/Kuzyashin/mattermost-plugin-alertmanager"
 )
