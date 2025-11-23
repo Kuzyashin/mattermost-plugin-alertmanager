@@ -21,30 +21,44 @@ const (
 )
 
 // getAlertColor returns the appropriate color for an alert
-// Priority: severity color > state color > default color
+// Priority for ACKED/RESOLVED: state color always wins
+// Priority for FIRING: severity color > state color > default
 func getAlertColor(alertConfig alertConfig, severity, state string) string {
-	// Priority 1: Check severity color mapping
-	if severity != "" && alertConfig.SeverityColors != nil {
-		if color, ok := alertConfig.SeverityColors[severity]; ok && color != "" {
-			return color
+	// For ACKED and RESOLVED states, state color takes priority over severity
+	if state == stateAcked || state == stateResolved {
+		// Priority 1: Custom state color
+		if alertConfig.StateColors != nil {
+			if color, ok := alertConfig.StateColors[state]; ok && color != "" {
+				return color
+			}
+		}
+
+		// Priority 2: Default state color
+		if state == stateAcked {
+			return colorAcknowledged
+		}
+		if state == stateResolved {
+			return colorResolved
 		}
 	}
 
-	// Priority 2: Check state color mapping
-	if state != "" && alertConfig.StateColors != nil {
-		if color, ok := alertConfig.StateColors[state]; ok && color != "" {
-			return color
+	// For FIRING state, severity color takes priority
+	if state == stateFiring {
+		// Priority 1: Custom severity color
+		if severity != "" && alertConfig.SeverityColors != nil {
+			if color, ok := alertConfig.SeverityColors[severity]; ok && color != "" {
+				return color
+			}
 		}
-	}
 
-	// Priority 3: Default colors based on state
-	switch state {
-	case stateAcked:
-		return colorAcknowledged
-	case stateResolved:
-		return colorResolved
-	case stateFiring:
-		// If we have severity but no custom color, use severity defaults
+		// Priority 2: Custom state color
+		if alertConfig.StateColors != nil {
+			if color, ok := alertConfig.StateColors[stateFiring]; ok && color != "" {
+				return color
+			}
+		}
+
+		// Priority 3: Default severity color
 		switch severity {
 		case "critical":
 			return colorCritical
@@ -56,10 +70,12 @@ func getAlertColor(alertConfig alertConfig, severity, state string) string {
 			return colorInfo
 		case "debug":
 			return colorDebug
-		default:
-			return colorFiring
 		}
-	default:
+
+		// Priority 4: Default firing color
 		return colorFiring
 	}
+
+	// Fallback for unknown states
+	return colorFiring
 }

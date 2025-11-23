@@ -177,17 +177,29 @@ You can also configure colors via JSON if needed:
 
 #### Color Priority System
 
-Colors are applied in this priority order:
-1. **Severity color** (highest priority) - if alert has `severity` label and custom mapping exists
-2. **State color** - if custom state mapping exists
-3. **Default severity color** - built-in severity colors for firing alerts
-4. **Default state color** (lowest priority) - built-in state colors
+**The priority system differs based on alert state:**
+
+**For ACKED and RESOLVED alerts** (state takes priority):
+1. **Custom state color** (highest) - User-defined color for acked/resolved
+2. **Default state color** - Built-in purple (acked) or green (resolved)
+
+**For FIRING alerts** (severity takes priority):
+1. **Custom severity color** (highest) - User-defined color for severity level
+2. **Custom state color** - User-defined color for firing state
+3. **Default severity color** - Built-in color based on severity label
+4. **Default firing color** - Built-in red
+
+**Why this design?**
+- When alert is **acknowledged or resolved**, the state is more important than severity
+- When alert is **firing**, the severity level is the most critical information
+- This ensures ACK/RESOLVED buttons visually change the alert color as expected
 
 **Examples:**
-- Critical firing alert → Uses severity color (red)
-- Info alert that's been ACKed → Uses ACK state color (yellow/orange)
-- Warning alert with custom severity color → Uses custom warning color
-- Resolved critical alert → Uses resolved state color (green)
+- Warning firing alert → Uses warning severity color (yellow `#F8E71C`)
+- Same warning alert after ACK → Changes to purple (`#9013FE`) - state overrides severity
+- Critical firing alert → Uses critical severity color (red `#FF0000`)
+- Critical alert resolved → Changes to green (`#008000`) - state overrides severity
+- Custom severity colors only apply to firing alerts
 
 Example thread reply for ACK:
 ```
@@ -574,13 +586,19 @@ Set Mattermost log level to DEBUG in System Console to see detailed webhook proc
 
 ### Color Customization Architecture
 
-The plugin implements a sophisticated **priority-based color system**:
+The plugin implements a sophisticated **state-aware priority-based color system**:
 
-**Priority Order (highest to lowest):**
-1. **Custom Severity Color** - User-defined color for specific severity level
-2. **Custom State Color** - User-defined color for alert state
+**Priority differs by alert state:**
+
+**For ACKED/RESOLVED alerts:**
+1. **Custom State Color** (highest) - User-defined color for acked/resolved
+2. **Default State Color** - Built-in purple (acked) or green (resolved)
+
+**For FIRING alerts:**
+1. **Custom Severity Color** (highest) - User-defined color for severity level
+2. **Custom State Color** - User-defined color for firing state
 3. **Default Severity Color** - Built-in color based on severity label
-4. **Default State Color** - Built-in color based on alert state
+4. **Default Firing Color** - Built-in red
 
 **Implementation:**
 - `getAlertColor(alertConfig, severity, state)` function in `/server/colors.go`
