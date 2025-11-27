@@ -176,7 +176,6 @@ func (p *Plugin) handleAlert(args *model.CommandArgs) (string, error) {
 			fields = addFields(fields, "Resolved", strconv.FormatBool(alert.Resolved()), false)
 			fields = addFields(fields, "Start At", alert.StartsAt.String(), true)
 			fields = addFields(fields, "Ended At", alert.EndsAt.String(), true)
-			fields = addFields(fields, "AlertManager Config ID", alertConfig.ID, true)
 			attachment := &model.SlackAttachment{
 				Title:  fmt.Sprintf("Alert Name: %s", alert.Name()),
 				Fields: fields,
@@ -373,7 +372,6 @@ func ConvertSilenceToSlackAttachment(silence types.Silence, config alertConfig, 
 	}
 	fields = addFields(fields, "Comments", silence.Comment, false)
 	fields = addFields(fields, "Created by", silence.CreatedBy, true)
-	fields = addFields(fields, "AlertManager Config ID", config.ID, true)
 
 	color := colorResolved
 	if string(silence.Status.State) == "active" {
